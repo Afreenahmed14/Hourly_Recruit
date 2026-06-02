@@ -4,3 +4,13 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+  [build]
+  # If your code is inside a subfolder named 'web', change "." to "web"
+  base = "."
+  
+  # Change "dist" to "build" if you are using standard Create React App instead of Vite
+  publish = "dist"
+  
+  # The command Netlify runs to build your project
+  command = "npm run build"
