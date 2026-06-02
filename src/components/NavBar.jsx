@@ -13,15 +13,28 @@ export default function Navbar({ currentPage, navigate }) {
   return (
     <nav className="navbar">
       {/* Logo */}
-      <button className="nav-logo" onClick={() => navigate("home")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+      <button
+        className="nav-logo"
+        onClick={() => navigate("home")}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      >
         <img
-          src="/src/assets/logoweb.png"
+          src={logo}
           alt="HourlyRecruit"
-          style={{ height: 44, width: "auto", display: "block" }}
+          style={{
+            height: "44px",
+            width: "auto",
+            display: "block",
+          }}
         />
       </button>
 
-      {/* Nav links */}
+      {/* Navigation Links */}
       <div className="nav-links">
         {links.map(({ key, label }) => (
           <button
@@ -34,8 +47,11 @@ export default function Navbar({ currentPage, navigate }) {
         ))}
       </div>
 
-      {/* CTA */}
-      <button className="nav-cta" onClick={() => navigate("contact")}>
+      {/* CTA Button */}
+      <button
+        className="nav-cta"
+        onClick={() => navigate("contact")}
+      >
         Get Started
       </button>
     </nav>
