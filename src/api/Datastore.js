@@ -1,17 +1,19 @@
-// ── api/Datastore.js ─────────────────────────────────────────────────────────
-// Central data store for the HourlyRecruit admin dashboard.
-// All data is persisted to localStorage under the key HR_DATA_KEY.
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Datastore.js — Updated for Backend Integration
+ * Manages site data with API fallback to localStorage/defaults
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 
-const HR_DATA_KEY = "hr_site_data";
+import { siteDataAPI } from "./Api";
 
+// Default data (fallback for when API is unavailable)
 export const DEFAULT_DATA = {
-  // ── HOME PAGE ──────────────────────────────────────────────────────────────
   home: {
     hero: {
       badge: "Hire Developers On Hourly Basis",
-      heading1: "Hire Skilled",
-      heading2: "Developers on",
-      accent: "Hourly Basis",
+      heading1: "Hire Skilled Developers on",
+      heading2: "Hourly Basis",
       subtext:
         "Scale your projects faster with experienced developers available on flexible hourly engagement models. No long-term contracts, no risk.",
       checks: [
@@ -25,6 +27,149 @@ export const DEFAULT_DATA = {
         { value: "4.9★", label: "Avg Rating" },
         { value: "24h", label: "Onboarding" },
       ],
+      floatStats: [
+        { value: "500+", label: "Developers Ready to hire" },
+        { value: "200+", label: "Projects Delivered on time" },
+      ],
+    },
+    trust: {
+      label: "Trusted by Startups, Agencies & Businesses Worldwide",
+      logos: ["Google", "Microsoft", "airbnb", "Uber", "PayPal", "shopify"],
+    },
+    offer: {
+      label: "What We Offer",
+      heading: "Hire Developers On Demand",
+      sub: "Choose from a wide range of skilled developers and tech specialists.",
+      items: [
+        "Frontend Developers",
+        "Backend Developers",
+        "Full Stack Developers",
+        "Mobile App Developers",
+        "UI/UX Designers",
+        "DevOps Engineers",
+        "QA / Test Engineers",
+        "AI & Automation Developers",
+        "Python Developers",
+        "Node.js Developers",
+      ],
+    },
+    engagement: {
+      label: "Engagement Models",
+      heading: "Flexible Hiring Models for Every Need",
+      sub: "Choose the engagement model that best fits your project requirements and budget.",
+      models: [
+        {
+          title: "Hourly Hiring",
+          desc: "Hire developers based on the exact number of hours you need. Perfect for short-term projects.",
+          perks: [
+            "Startup MVPs",
+            "Bug Fixes",
+            "Feature Development",
+            "Ongoing Support",
+            "Technical Consultation",
+          ],
+          featured: false,
+        },
+        {
+          title: "Dedicated Developers",
+          desc: "Get full-time dedicated resources working exclusively on your project with full transparency.",
+          perks: [
+            "Faster delivery",
+            "Better collaboration",
+            "Flexible scaling",
+            "Transparent communication",
+          ],
+          featured: true,
+        },
+        {
+          title: "Project-Based Teams",
+          desc: "Build complete teams for web, mobile, SaaS, or enterprise applications end-to-end.",
+          perks: [
+            "Developers",
+            "UI/UX Designers",
+            "QA Engineers",
+            "Project Coordinators",
+          ],
+          featured: false,
+        },
+      ],
+    },
+    startup: {
+      tag: "For Startups",
+      heading: "Build Your MVP Faster",
+      desc: "We help startups go from idea to product with the right tech talent. Agile, affordable, and reliable.",
+      checks: [
+        "Build MVPs",
+        "Develop SaaS products",
+        "Create mobile apps",
+        "Maintain existing products",
+        "Add new features faster",
+      ],
+      card: {
+        heading: "Launch Ready",
+        desc: "From concept to deployment in weeks, not months.",
+        stats: [
+          { value: "3x", label: "Faster Launch" },
+          { value: "60%", label: "Cost Savings" },
+          { value: "50+", label: "MVPs Built" },
+          { value: "100%", label: "On-Time Rate" },
+        ],
+      },
+    },
+    how: {
+      label: "How It Works",
+      heading: "Simple Process. Powerful Results.",
+      sub: "Get started with your development team in just four easy steps.",
+      steps: [
+        {
+          n: "1",
+          title: "Share Your Requirement",
+          desc: "Tell us your project needs, tech stack, and hiring preferences.",
+        },
+        {
+          n: "2",
+          title: "Select Developers",
+          desc: "Choose from pre-screened developers that match your requirements.",
+        },
+        {
+          n: "3",
+          title: "Start Development",
+          desc: "Begin work immediately with flexible engagement and full transparency.",
+        },
+        {
+          n: "4",
+          title: "Scale Anytime",
+          desc: "Increase or reduce your team size based on your project demands.",
+        },
+      ],
+    },
+    why: {
+      label: "Why Choose HourlyRecruit",
+      heading: "Build Faster. Smarter. Better.",
+      cards: [
+        { title: "Flexible Hiring", desc: "Hire only when you need and optimize costs. No commitments." },
+        {
+          title: "Faster Execution",
+          desc: "Quick onboarding with ready-to-work experts from day one.",
+        },
+        {
+          title: "Scalable Teams",
+          desc: "Scale up or down based on your project needs instantly.",
+        },
+        {
+          title: "Startup Friendly",
+          desc: "Affordable solutions designed for early-stage startups.",
+        },
+        {
+          title: "Transparent Comms",
+          desc: "Regular updates and clear communication throughout.",
+        },
+      ],
+    },
+    cta: {
+      label: "Get Started Today",
+      heading: "Let's Build Something Great Together",
+      sub: "Hire skilled developers on hourly basis and bring your ideas to life. No long-term contracts, no risk.",
     },
     testimonials: [
       {
@@ -35,344 +180,211 @@ export const DEFAULT_DATA = {
         quote:
           "HourlyRecruit helped us quickly onboard frontend and backend developers for our SaaS product. The process was smooth, flexible and highly professional.",
       },
-      {
-        initials: "PS",
-        name: "Priya Sharma",
-        role: "Founder, HealthTrack",
-        color: "linear-gradient(135deg,#ec4899,#f43f5e)",
-        quote:
-          "We were able to launch our MVP faster using their hourly developer model. Great communication and high-quality work delivered on time every single sprint.",
-      },
-      {
-        initials: "RM",
-        name: "Rahul Mehta",
-        role: "Founder, SaaSFlow",
-        color: "linear-gradient(135deg,#06b6d4,#0891b2)",
-        quote:
-          "HourlyRecruit helped us hire experienced developers within days. Their flexible engagement model allowed us to scale quickly without long-term hiring commitments.",
-      },
-      {
-        initials: "SC",
-        name: "Sarah Chen",
-        role: "VP Engineering, FinEdge",
-        color: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-        quote:
-          "The dedicated developer model worked brilliantly for us. They integrated seamlessly with our team, attended standups, and delivered exceptional code quality.",
-      },
     ],
   },
-
-  // ── DEVELOPERS ────────────────────────────────────────────────────────────
-  developers: [
-    {
-      initials: "AK",
-      name: "Arjun Kumar",
-      role: "Senior React Developer",
-      exp: "6 yrs",
-      rate: "$35/hr",
-      rating: "4.9",
-      projects: 42,
-      color: "linear-gradient(135deg,#1a56db,#3b82f6)",
-      skills: ["React.js", "TypeScript", "Next.js", "Node.js"],
-      category: "Frontend",
-    },
-    {
-      initials: "PS",
-      name: "Priya Singh",
-      role: "Full Stack Developer",
-      exp: "5 yrs",
-      rate: "$38/hr",
-      rating: "5.0",
-      projects: 31,
-      color: "linear-gradient(135deg,#ec4899,#f43f5e)",
-      skills: ["React.js", "Node.js", "MongoDB", "AWS"],
-      category: "Full Stack",
-    },
-    {
-      initials: "RV",
-      name: "Rahul Verma",
-      role: "Backend Engineer",
-      exp: "7 yrs",
-      rate: "$40/hr",
-      rating: "4.8",
-      projects: 58,
-      color: "linear-gradient(135deg,#06b6d4,#0891b2)",
-      skills: ["Python", "Django", "PostgreSQL", "Redis"],
-      category: "Backend",
-    },
-    {
-      initials: "SM",
-      name: "Sneha Mehta",
-      role: "Flutter Developer",
-      exp: "4 yrs",
-      rate: "$32/hr",
-      rating: "4.9",
-      projects: 27,
-      color: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-      skills: ["Flutter", "Dart", "Firebase", "iOS/Android"],
-      category: "Mobile",
-    },
-    {
-      initials: "KP",
-      name: "Kiran Patel",
-      role: "DevOps Engineer",
-      exp: "6 yrs",
-      rate: "$42/hr",
-      rating: "4.8",
-      projects: 45,
-      color: "linear-gradient(135deg,#f59e0b,#d97706)",
-      skills: ["AWS", "Docker", "Kubernetes", "Terraform"],
-      category: "DevOps",
-    },
-    {
-      initials: "DG",
-      name: "Divya Gupta",
-      role: "UI/UX Designer",
-      exp: "5 yrs",
-      rate: "$30/hr",
-      rating: "5.0",
-      projects: 38,
-      color: "linear-gradient(135deg,#22c55e,#16a34a)",
-      skills: ["Figma", "Adobe XD", "Framer", "Prototyping"],
-      category: "Design",
-    },
-    {
-      initials: "AS",
-      name: "Amit Sharma",
-      role: "Node.js Developer",
-      exp: "5 yrs",
-      rate: "$36/hr",
-      rating: "4.7",
-      projects: 33,
-      color: "linear-gradient(135deg,#0ea5e9,#0284c7)",
-      skills: ["Node.js", "Express", "GraphQL", "MongoDB"],
-      category: "Backend",
-    },
-    {
-      initials: "NR",
-      name: "Neha Rao",
-      role: "React Native Developer",
-      exp: "4 yrs",
-      rate: "$33/hr",
-      rating: "4.9",
-      projects: 22,
-      color: "linear-gradient(135deg,#f43f5e,#e11d48)",
-      skills: ["React Native", "Redux", "Firebase", "REST APIs"],
-      category: "Mobile",
-    },
-    {
-      initials: "VK",
-      name: "Vikram Krishnan",
-      role: "Java Backend Developer",
-      exp: "8 yrs",
-      rate: "$44/hr",
-      rating: "4.8",
-      projects: 67,
-      color: "linear-gradient(135deg,#d97706,#b45309)",
-      skills: ["Java", "Spring Boot", "Microservices", "AWS"],
-      category: "Backend",
-    },
-  ],
-
-  // ── PRICING ───────────────────────────────────────────────────────────────
-  pricing: [
-    {
-      name: "Hourly",
-      amount: "$25",
-      period: "/hr",
-      subtext: "Pay as you go · No minimum commitment",
-      popular: false,
-      features: [
-        "Access to vetted developers",
-        "Pay for actual hours logged",
-        "Weekly billing & timesheets",
-        "Start & pause anytime",
-        "Basic account support",
-      ],
-    },
-    {
-      name: "Dedicated",
-      amount: "$2,800",
-      period: "/mo",
-      subtext: "Full-time dedicated developer · Timezone aligned",
-      popular: true,
-      features: [
-        "Everything in Hourly",
-        "Exclusive to your project",
-        "Full timezone alignment",
-        "Daily standups & reporting",
-        "Dedicated account manager",
-        "7-day replacement guarantee",
-      ],
-    },
-    {
-      name: "Team",
-      amount: "Custom",
-      period: "",
-      subtext: "Full project team · Milestone-based billing",
-      popular: false,
-      features: [
-        "Everything in Dedicated",
-        "2–12 member teams",
-        "Project manager included",
-        "Milestone-based billing",
-        "Fixed scope delivery",
-        "Priority support 24/7",
-      ],
-    },
-  ],
-
-  // ── ABOUT PAGE ────────────────────────────────────────────────────────────
   about: {
     hero: {
-      heading: "Hire Skilled Developers on Hourly Basis",
+      heading: "Bridging the Gap Between Talent and Opportunity",
       subtext:
-        "Scale your projects faster with experienced developers available on flexible hourly engagement models. No long-term contracts, no risk.",
-    },
-    content: {
-      heading: "Helping Businesses Build Faster with Reliable Developers",
-      paragraphs: [
-        "HourlyRecruit helps startups, agencies, and enterprises hire skilled developers on flexible hourly engagement models. From frontend engineering and backend architecture to DevOps, automation, and mobile app development — we provide experienced professionals who can work independently or alongside your internal team.",
-        "Whether you need one developer for a quick task or a complete engineering team for a large-scale project, our process makes tech hiring simple, fast, transparent, and scalable.",
-      ],
+        "HourlyRecruit was built to solve the complexity of tech hiring. We connect businesses with pre-vetted developers across every major technology stack.",
     },
     stats: [
-      { value: "500+", label: "Vetted Developers" },
+      { value: "500+", label: "Expert Developers" },
       { value: "200+", label: "Projects Delivered" },
       { value: "98%", label: "Client Satisfaction" },
-      { value: "48h", label: "Avg. Onboarding Time" },
+      { value: "48h", label: "Average Onboarding" },
     ],
+    content: {
+      mission:
+        "Our mission is to make world-class technical talent accessible to every business — from seed-stage startups to enterprise companies.",
+    },
   },
-
-  // ── CONTACT PAGE ──────────────────────────────────────────────────────────
-  contact: {
+  technologies: {
     hero: {
-      heading: "Have a Project in Mind?",
+      heading: "Modern Technologies. Expert Developers.",
       subtext:
-        "Let's discuss how we can help you build and scale your product with the right tech talent.",
+        "Our developers bring deep expertise across the full technology spectrum — from modern frontend frameworks to cloud infrastructure and AI.",
     },
-    info: {
-      location: "Bangalore, India",
-      email: "hr@hourlyrecruit.com",
-      phone: "+91 888 444 6677",
-      website: "www.hourlyrecruit.com",
-    },
-    nextSteps: [
-      "We review your requirements within 2 hours",
-      "A team member schedules a quick 30-min call",
-      "We share 3–5 matched developer profiles",
-      "You interview and choose — hire in 48 hours",
-    ],
   },
-
-  // ── HOW IT WORKS (FAQs) ───────────────────────────────────────────────────
   howItWorks: {
+    hero: {
+      heading: "From Brief to Build in 5 Simple Steps",
+      subtext:
+        "A streamlined hiring process designed to get your project moving in days, not months. Transparent, efficient, and stress-free.",
+    },
     faqs: [
       {
         q: "How quickly can I hire a developer?",
-        a: "In most cases, you can have a developer ready to start within 48 hours of sharing your requirements. Complex or very niche requirements may take up to 5 business days.",
-      },
-      {
-        q: "What if the developer doesn't meet my expectations?",
-        a: "We offer a 7-day guarantee. If you're not satisfied in the first week, we'll find you a replacement at no additional cost — no questions asked.",
-      },
-      {
-        q: "Do I need to sign a long-term contract?",
-        a: "No. Our Hourly model has zero minimum commitment. Our Dedicated model runs month-to-month with a 7-day cancellation notice. No lock-ins, ever.",
-      },
-      {
-        q: "How do you vet your developers?",
-        a: "Every developer passes a multi-stage process: initial technical screen, live coding assessment, system design interview, communication evaluation, and reference checks. Less than 8% of applicants make it through.",
-      },
-      {
-        q: "What time zones do your developers work in?",
-        a: "Our developers are spread across IST (India), EET (Eastern Europe), and LATAM time zones. We match you with developers who overlap at least 4 hours with your working day.",
-      },
-      {
-        q: "How does billing work?",
-        a: "Hourly model: billed weekly based on timesheets. Dedicated model: fixed monthly billing. Project model: milestone-based payments. All invoices are NET-15.",
-      },
-      {
-        q: "Can developers join our existing team processes?",
-        a: "Absolutely. Our developers are remote-work veterans who integrate into your Slack, Jira, GitHub, standups, and sprint cycles from day one.",
+        a: "In most cases, you can have a developer ready to start within 48 hours of sharing your requirements.",
       },
     ],
   },
-
-  // ── FOOTER ────────────────────────────────────────────────────────────────
+  contact: {
+    heading: "Have a Project in Mind?",
+    subtext:
+      "Let's discuss how we can help you build and scale your product with the right tech talent.",
+    phone: "+91 888 444 6677",
+    email: "hr@hourlyrecruit.com",
+    location: "Bangalore, India",
+    website: "www.hourlyrecruit.com",
+  },
+  developers: [],
+  pricing: [],
   footer: {
     desc: "Hire skilled developers on hourly basis and scale your projects faster without long-term commitments.",
     copyright: "© 2024 HourlyRecruit. All Rights Reserved.",
   },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+const STORAGE_KEY = "hr_site_data_v2";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+let cache = null;
+let cacheTime = 0;
 
-/** Deep-merge saved data on top of defaults so new keys are always present. */
-function mergeWithDefaults(saved) {
-  try {
-    const merged = JSON.parse(JSON.stringify(DEFAULT_DATA)); // deep clone defaults
+/**
+ * Deep merge utility - merges saved data against defaults
+ * Ensures all required keys exist (prevents crashes from schema changes)
+ */
+function deepMerge(target, source) {
+  const result = { ...target };
 
-    if (!saved || typeof saved !== "object") return merged;
-
-    // Top-level keys
-    for (const key of Object.keys(merged)) {
-      if (saved[key] !== undefined) {
-        if (Array.isArray(merged[key])) {
-          // Arrays: use saved version directly
-          merged[key] = saved[key];
-        } else if (typeof merged[key] === "object" && merged[key] !== null) {
-          // Objects: shallow-merge one level deep for nested sections
-          merged[key] = { ...merged[key], ...saved[key] };
-
-          // Go one more level for nested objects (e.g. about.hero, contact.info)
-          for (const subKey of Object.keys(merged[key])) {
-            if (
-              saved[key][subKey] !== undefined &&
-              typeof merged[key][subKey] === "object" &&
-              !Array.isArray(merged[key][subKey])
-            ) {
-              merged[key][subKey] = { ...merged[key][subKey], ...saved[key][subKey] };
-            }
-          }
-        } else {
-          merged[key] = saved[key];
-        }
-      }
+  Object.keys(source).forEach((key) => {
+    if (source[key] !== null && typeof source[key] === "object" && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else {
+      result[key] = result[key] !== undefined ? result[key] : source[key];
     }
+  });
 
-    return merged;
-  } catch {
-    return JSON.parse(JSON.stringify(DEFAULT_DATA));
-  }
+  return result;
 }
 
-/** Read data from localStorage, falling back to defaults. */
-export function getData() {
+/**
+ * Get data with fallback chain:
+ * 1. API (fresh from backend)
+ * 2. Cache (if within TTL)
+ * 3. localStorage (stale data)
+ * 4. Defaults (hardcoded fallback)
+ */
+export async function getData() {
+  const now = Date.now();
+
+  // Return cache if valid
+  if (cache && now - cacheTime < CACHE_TTL) {
+    return cache;
+  }
+
   try {
-    const raw = localStorage.getItem(HR_DATA_KEY);
-    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_DATA));
-    return mergeWithDefaults(JSON.parse(raw));
-  } catch {
-    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+    // Try fetching from API
+    const apiData = await siteDataAPI.getAll();
+    if (apiData) {
+      // Merge with defaults to ensure all keys exist
+      const merged = deepMerge(apiData, DEFAULT_DATA);
+      cache = merged;
+      cacheTime = now;
+      
+      // Also save to localStorage as backup
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      } catch (e) {
+        console.warn("localStorage save failed:", e);
+      }
+      
+      return merged;
+    }
+  } catch (error) {
+    console.warn("API fetch failed, falling back to localStorage:", error);
+  }
+
+  // Fall back to localStorage
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const merged = deepMerge(parsed, DEFAULT_DATA);
+      cache = merged;
+      cacheTime = now;
+      return merged;
+    }
+  } catch (error) {
+    console.warn("localStorage read failed:", error);
+  }
+
+  // Final fallback to defaults
+  cache = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  cacheTime = now;
+  return cache;
+}
+
+/**
+ * Set data - updates both API and localStorage
+ */
+export async function setData(data) {
+  try {
+    // Update via API
+    await siteDataAPI.updateAll(data);
+    
+    // Clear cache to force refresh
+    cache = null;
+    cacheTime = 0;
+    
+    // Also save to localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    
+    // Dispatch event for UI updates
+    window.dispatchEvent(
+      new CustomEvent("hr_data_updated", { detail: data })
+    );
+  } catch (error) {
+    console.error("Failed to save data:", error);
+    
+    // Fallback: save to localStorage only if API fails
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      window.dispatchEvent(
+        new CustomEvent("hr_data_updated", { detail: data })
+      );
+    } catch (storageError) {
+      console.error("All save methods failed:", storageError);
+      throw error;
+    }
   }
 }
 
-/** Persist data to localStorage. */
-export function setData(data) {
+/**
+ * Reset to defaults
+ */
+export async function resetData() {
   try {
-    localStorage.setItem(HR_DATA_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.error("Datastore: failed to save", e);
+    // Reset via API
+    await siteDataAPI.reset();
+    cache = null;
+    cacheTime = 0;
+  } catch (error) {
+    console.warn("API reset failed, using local reset:", error);
   }
+
+  // Local reset
+  localStorage.removeItem(STORAGE_KEY);
+  const defaultsCopy = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  window.dispatchEvent(
+    new CustomEvent("hr_data_updated", { detail: defaultsCopy })
+  );
+  return defaultsCopy;
 }
 
-/** Wipe localStorage and return fresh defaults. */
-export function resetData() {
-  try {
-    localStorage.removeItem(HR_DATA_KEY);
-  } catch (e) {
-    console.error("Datastore: failed to reset", e);
-  }
-  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+/**
+ * Clear cache to force fresh API fetch
+ */
+export function invalidateCache() {
+  cache = null;
+  cacheTime = 0;
 }
+
+export default {
+  getData,
+  setData,
+  resetData,
+  invalidateCache,
+  DEFAULT_DATA,
+};
