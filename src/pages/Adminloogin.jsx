@@ -1,46 +1,77 @@
 import { useState } from "react";
+import { login as apiLogin } from "../api/Api";
 
-const ADMIN_USER = "Admin";
-const ADMIN_PASS = "12345";
+// Demo fallback credentials (used only when backend is unreachable)
+const DEMO_USER = "Admin";
+const DEMO_PASS = "12345";
 
-export default function AdminLogin({ onLogin, onBack }) {
-  const [form, setForm] = useState({ username: "", password: "" });
-  const [error, setError] = useState("");
+export default function AdminLogin({ onLogin }) {
+  const [form, setForm]     = useState({ username: "", password: "" });
+  const [error, setError]   = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [mode, setMode]     = useState("password"); // "password" | "email-jwt"
 
   const handle = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setError("");
   };
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      if (form.username === ADMIN_USER && form.password === ADMIN_PASS) {
+    setError("");
+
+    try {
+      // ── Try real backend first (email + password via JWT) ──
+      // The backend uses email, so if input looks like an email, try it directly.
+      const isEmail = form.username.includes("@");
+
+      if (isEmail) {
+        await apiLogin(form.username, form.password);
+        onLogin();
+        setLoading(false);
+        return;
+      }
+
+      // ── Non-email input: try backend with username as-is, then fallback ──
+      let backendSuccess = false;
+      try {
+        await apiLogin(form.username, form.password);
+        backendSuccess = true;
+      } catch {
+        // Backend rejected or not reachable — fall through to demo check
+      }
+
+      if (backendSuccess) {
+        onLogin();
+        setLoading(false);
+        return;
+      }
+
+      // ── Demo credential fallback ──────────────────────────────────────────
+      if (form.username === DEMO_USER && form.password === DEMO_PASS) {
         sessionStorage.setItem("hr_admin_auth", "1");
         onLogin();
       } else {
-        setError("Invalid username or password.");
+        setError("Invalid credentials. Use your email/password or the demo account.");
       }
+    } catch (err) {
+      // If backend call succeeded but threw for another reason, check demo
+      if (form.username === DEMO_USER && form.password === DEMO_PASS) {
+        sessionStorage.setItem("hr_admin_auth", "1");
+        onLogin();
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
     <div style={styles.overlay}>
       <div style={styles.card}>
-        {/* Back button */}
-        {onBack && (
-          <button onClick={onBack} style={styles.backBtn}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 15, height: 15 }}>
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
-            Back to site
-          </button>
-        )}
-
         {/* Logo area */}
         <div style={styles.logoWrap}>
           <div style={styles.logoIcon}>
@@ -57,9 +88,27 @@ export default function AdminLogin({ onLogin, onBack }) {
         <h2 style={styles.heading}>Welcome back</h2>
         <p style={styles.sub}>Sign in to manage your website content</p>
 
+        {/* Mode toggle */}
+        <div style={styles.modeRow}>
+          <button
+            type="button"
+            onClick={() => setMode("password")}
+            style={{ ...styles.modeBtn, ...(mode === "password" ? styles.modeBtnActive : {}) }}
+          >
+            Username / Email
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("email-jwt")}
+            style={{ ...styles.modeBtn, ...(mode === "email-jwt" ? styles.modeBtnActive : {}) }}
+          >
+            Email (JWT)
+          </button>
+        </div>
+
         <form onSubmit={submit} style={styles.form}>
           <div style={styles.group}>
-            <label style={styles.label}>Username</label>
+            <label style={styles.label}>{mode === "email-jwt" ? "Email" : "Username or Email"}</label>
             <div style={styles.inputWrap}>
               <span style={styles.inputIcon}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}>
@@ -68,11 +117,11 @@ export default function AdminLogin({ onLogin, onBack }) {
                 </svg>
               </span>
               <input
-                type="text"
+                type={mode === "email-jwt" ? "email" : "text"}
                 name="username"
                 value={form.username}
                 onChange={handle}
-                placeholder="Enter username"
+                placeholder={mode === "email-jwt" ? "admin@company.com" : "Admin or email"}
                 style={styles.input}
                 required
                 autoFocus
@@ -136,12 +185,38 @@ export default function AdminLogin({ onLogin, onBack }) {
         </form>
 
         <div style={styles.hint}>
-          <span style={{ opacity: 0.5 }}>Hint: </span>
+          <span style={{ opacity: 0.5 }}>Demo: </span>
           <span style={{ color: "#6366f1", fontFamily: "monospace" }}>Admin</span>
           <span style={{ opacity: 0.5 }}> / </span>
           <span style={{ color: "#6366f1", fontFamily: "monospace" }}>12345</span>
+          <span style={{ opacity: 0.4, marginLeft: 8 }}>— or use your registered email</span>
         </div>
+
+        {/* API status indicator */}
+        <ApiStatusBadge />
       </div>
+    </div>
+  );
+}
+
+// Small component that pings the backend to show live/offline status
+function ApiStatusBadge() {
+  const [status, setStatus] = useState("checking");
+
+  useState(() => {
+    const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+    fetch(`${base}/public/site-settings`, { signal: AbortSignal.timeout(3000) })
+      .then(() => setStatus("online"))
+      .catch(() => setStatus("offline"));
+  });
+
+  const color = status === "online" ? "#22c55e" : status === "offline" ? "#ef4444" : "#f59e0b";
+  const label = status === "online" ? "Backend connected" : status === "offline" ? "Backend offline (demo mode)" : "Checking backend…";
+
+  return (
+    <div style={{ marginTop: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block" }} />
+      {label}
     </div>
   );
 }
@@ -163,73 +238,59 @@ const styles = {
     borderRadius: 24,
     padding: "44px 40px",
     width: "100%",
-    maxWidth: 420,
+    maxWidth: 440,
     boxShadow: "0 32px 80px rgba(0,0,0,0.5)",
     position: "relative",
   },
-  backBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    background: "rgba(255,255,255,0.07)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 8,
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    padding: "6px 12px",
-    marginBottom: 28,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    transition: "all .18s",
-    letterSpacing: ".02em",
-  },
   logoWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 32,
+    display: "flex", alignItems: "center", gap: 12, marginBottom: 32,
   },
   logoIcon: {
-    width: 48, height: 48,
-    borderRadius: 14,
+    width: 48, height: 48, borderRadius: 14,
     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
     display: "flex", alignItems: "center", justifyContent: "center",
     boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
   },
   logoText: {
     fontFamily: "'Bricolage Grotesque', sans-serif",
-    fontSize: 18, fontWeight: 800,
-    color: "white", letterSpacing: "-0.3px",
+    fontSize: 18, fontWeight: 800, color: "white", letterSpacing: "-0.3px",
   },
   logoSub: {
-    fontSize: 11, color: "rgba(255,255,255,0.4)",
-    fontWeight: 600, letterSpacing: "0.08em",
-    textTransform: "uppercase",
+    fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 600,
+    letterSpacing: "0.08em", textTransform: "uppercase",
   },
   heading: {
     fontFamily: "'Bricolage Grotesque', sans-serif",
-    fontSize: 28, fontWeight: 800,
-    color: "white", margin: "0 0 6px",
-    letterSpacing: "-0.5px",
+    fontSize: 28, fontWeight: 800, color: "white", margin: "0 0 6px", letterSpacing: "-0.5px",
   },
-  sub: { fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 32px" },
+  sub: { fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 24px" },
+  modeRow: {
+    display: "flex", gap: 8, marginBottom: 24,
+    background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 4,
+  },
+  modeBtn: {
+    flex: 1, padding: "8px 10px", border: "none", borderRadius: 7,
+    fontSize: 12, fontWeight: 600, cursor: "pointer",
+    background: "transparent", color: "rgba(255,255,255,0.45)",
+    fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all .15s",
+  },
+  modeBtnActive: {
+    background: "rgba(99,102,241,0.3)", color: "white",
+    boxShadow: "0 2px 8px rgba(99,102,241,0.2)",
+  },
   form: { display: "flex", flexDirection: "column", gap: 20 },
   group: { display: "flex", flexDirection: "column", gap: 8 },
   label: {
-    fontSize: 12, fontWeight: 700,
-    color: "rgba(255,255,255,0.6)",
+    fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)",
     letterSpacing: "0.05em", textTransform: "uppercase",
   },
   inputWrap: { position: "relative" },
   inputIcon: {
     position: "absolute", left: 14, top: "50%",
-    transform: "translateY(-50%)",
-    color: "rgba(255,255,255,0.3)", display: "flex",
+    transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", display: "flex",
   },
   input: {
-    width: "100%",
-    background: "rgba(255,255,255,0.06)",
+    width: "100%", background: "rgba(255,255,255,0.06)",
     border: "1.5px solid rgba(255,255,255,0.12)",
     borderRadius: 10, padding: "12px 14px 12px 42px",
     fontSize: 14, color: "white", outline: "none",
@@ -244,31 +305,24 @@ const styles = {
   },
   error: {
     display: "flex", alignItems: "center", gap: 8,
-    background: "rgba(239,68,68,0.15)",
-    border: "1px solid rgba(239,68,68,0.3)",
-    borderRadius: 8, padding: "10px 14px",
-    fontSize: 13, color: "#fca5a5",
+    background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)",
+    borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#fca5a5",
   },
   btn: {
     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
     color: "white", border: "none", borderRadius: 10,
     padding: "14px", fontSize: 15, fontWeight: 700,
     fontFamily: "'Plus Jakarta Sans', sans-serif",
-    cursor: "pointer",
-    transition: "opacity 0.2s, transform 0.2s",
-    boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
-    marginTop: 4,
+    cursor: "pointer", transition: "opacity 0.2s, transform 0.2s",
+    boxShadow: "0 8px 24px rgba(99,102,241,0.4)", marginTop: 4,
   },
   hint: {
-    marginTop: 24, textAlign: "center",
-    fontSize: 12, color: "rgba(255,255,255,0.4)",
+    marginTop: 24, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.4)",
   },
   spinner: {
     width: 16, height: 16,
-    border: "2px solid rgba(255,255,255,0.3)",
-    borderTopColor: "white",
-    borderRadius: "50%",
-    display: "inline-block",
+    border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white",
+    borderRadius: "50%", display: "inline-block",
     animation: "spin 0.7s linear infinite",
   },
 };

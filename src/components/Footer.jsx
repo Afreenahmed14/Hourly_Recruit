@@ -1,16 +1,38 @@
+import logoWeb from "../assets/logoweb.png";
 export default function Footer({ navigate }) {
   return (
     <footer className="footer">
       <div className="footer-top">
         <div className="footer-brand">
-          <button className="nav-logo" onClick={() => navigate("home")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+          {/* <button className="nav-logo" onClick={() => navigate("home")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
             <div className="nav-logo-icon" style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#1a56db,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "white" }}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
             </div>
             <span style={{ fontFamily: "Syne, sans-serif", fontSize: 17, fontWeight: 800, color: "white" }}>
               Hourly<span style={{ color: "#38bdf8" }}>Recruit</span>
             </span>
-          </button>
+          </button> */}
+          <button
+  className="nav-logo"
+  onClick={() => navigate("home")}
+  style={{
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center"
+  }}
+>
+  <img
+    src={logoWeb}
+    alt="Hourly Recruit Logo"
+    style={{
+      height: "50px",
+      width: "auto",
+      objectFit: "contain"
+    }}
+  />
+</button>
           <p className="footer-brand-desc">Hire skilled developers on hourly basis and scale your projects faster without long-term commitments.</p>
           <div className="footer-socials">
             {/* LinkedIn */}
@@ -35,20 +57,78 @@ export default function Footer({ navigate }) {
           ))}
         </div>
 
-        <div className="footer-col">
+        {/* <div className="footer-col">
           <h4>Services</h4>
           {["Hourly Developers","Dedicated Developers","MVP Development","Remote Developers","Project Teams"].map(s => (
             <button key={s} className="footer-col-link" onClick={() => navigate("hire")}>{s}</button>
           ))}
-        </div>
-
+        </div> */}
         <div className="footer-col">
+  <h4>Services</h4>
+
+  {[
+    "Hourly Developers",
+    "Dedicated Developers",
+    "MVP Development",
+    "Remote Developers",
+    "Project Teams"
+  ].map((s) => (
+    <span
+      key={s}
+      className="footer-col-link"
+      style={{
+        display: "block",
+        marginBottom: "10px",
+        cursor: "default"
+      }}
+    >
+      {s}
+    </span>
+  ))}
+</div>
+
+        {/* <div className="footer-col">
           <h4>Contact Us</h4>
           <button className="footer-col-link" onClick={() => navigate("contact")}>Bangalore, India</button>
           <button className="footer-col-link" onClick={() => navigate("contact")}>hr@hourlyrecruit.com</button>
           <button className="footer-col-link" onClick={() => navigate("contact")}>+91 888 444 6677</button>
           <button className="footer-col-link" onClick={() => navigate("contact")}>www.hourlyrecruit.com</button>
-        </div>
+        </div> */}
+        <div className="footer-col">
+  <h4>Contact Us</h4>
+
+  <a
+    className="footer-col-link"
+    href="https://maps.google.com/?q=Bangalore,India"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    📍 Bangalore, Karnataka, India
+  </a>
+
+  <a
+    className="footer-col-link"
+    href="mailto:hr@hourlyrecruit.com"
+  >
+    📧 hr@hourlyrecruit.com
+  </a>
+
+  <a
+    className="footer-col-link"
+    href="tel:+918884446677"
+  >
+    📞 +91 888 444 6677
+  </a>
+
+  <a
+    className="footer-col-link"
+    href="https://www.hourlyrecruit.com"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    🌐 www.hourlyrecruit.com
+  </a>
+</div>
       </div>
 
       <div className="footer-bottom">

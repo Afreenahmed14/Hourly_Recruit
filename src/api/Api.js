@@ -1,437 +1,309 @@
+// ── api/api.js ────────────────────────────────────────────────────────────────
+// Central API service layer for HourlyRecruit.
+// All calls go through here. Falls back gracefully when backend isn't reachable.
+// Base URL is read from the env var VITE_API_URL (defaults to localhost:8080).
+
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
+// ── Token helpers ─────────────────────────────────────────────────────────────
+
+export function getAccessToken() {
+  return sessionStorage.getItem("hr_access_token");
+}
+
+export function setTokens(accessToken, refreshToken) {
+  sessionStorage.setItem("hr_access_token", accessToken);
+  if (refreshToken) sessionStorage.setItem("hr_refresh_token", refreshToken);
+}
+
+export function clearTokens() {
+  sessionStorage.removeItem("hr_access_token");
+  sessionStorage.removeItem("hr_refresh_token");
+  sessionStorage.removeItem("hr_admin_auth");
+}
+
+function authHeaders() {
+  const token = getAccessToken();
+  return token
+    ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+    : { "Content-Type": "application/json" };
+}
+
+// ── Core fetch wrapper ────────────────────────────────────────────────────────
+
+async function request(method, path, body, useAuth = false) {
+  const headers = useAuth ? authHeaders() : { "Content-Type": "application/json" };
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+
+  // 204 No Content
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * API.js — Centralized API communication layer
- * Handles all HTTP requests, token management, and error handling
- * ─────────────────────────────────────────────────────────────────────────────
+ * Login with email + password (used by AdminLogin).
+ * Returns { accessToken, refreshToken, message }.
  */
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
-const API_TIMEOUT = 30000; // 30 seconds
-
-// Token management
-export function getToken() {
-  return localStorage.getItem("hr_auth_token");
+export async function login(email, password) {
+  const data = await request("POST", "/auth/login", { email, password });
+  setTokens(data.accessToken, data.refreshToken);
+  sessionStorage.setItem("hr_admin_auth", "1");
+  return data;
 }
 
-export function setToken(token) {
-  localStorage.setItem("hr_auth_token", token);
+/**
+ * Register a new HR admin account.
+ */
+export async function registerHR(email, password) {
+  const data = await request("POST", "/auth/register/hr", { email, password });
+  setTokens(data.accessToken, data.refreshToken);
+  sessionStorage.setItem("hr_admin_auth", "1");
+  return data;
 }
 
-export function clearToken() {
-  localStorage.removeItem("hr_auth_token");
+/**
+ * Refresh the access token using the stored refresh token.
+ */
+export async function refreshAccessToken() {
+  const refreshToken = sessionStorage.getItem("hr_refresh_token");
+  if (!refreshToken) throw new Error("No refresh token");
+  const data = await request("POST", "/auth/refresh", { refreshToken });
+  setTokens(data.accessToken, data.refreshToken);
+  return data.accessToken;
 }
 
-// Default headers builder
-function getHeaders(includeAuth = true, isFormData = false) {
-  const headers = {};
-
-  if (!isFormData) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (includeAuth) {
-    const token = getToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  }
-
-  return headers;
+/**
+ * Send OTP to email for passwordless login.
+ */
+export async function sendOtp(email) {
+  return request("POST", "/auth/send-otp", { email });
 }
 
-// Generic fetch wrapper with timeout, error handling, and auto-refresh
-async function apiCall(endpoint, options = {}) {
-  const {
-    method = "GET",
-    body = null,
-    includeAuth = true,
-    isFormData = false,
-    timeout = API_TIMEOUT,
-  } = options;
+/**
+ * Verify OTP and get tokens.
+ */
+export async function verifyOtp(email, otp) {
+  const data = await request("POST", "/auth/verify-otp", { email, otp });
+  setTokens(data.accessToken, data.refreshToken);
+  sessionStorage.setItem("hr_admin_auth", "1");
+  return data;
+}
 
-  const url = `${API_BASE_URL}${endpoint}`;
-  const headers = getHeaders(includeAuth, isFormData);
+// ── Public: Site Settings ─────────────────────────────────────────────────────
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
+/**
+ * Fetch public site settings (company name, logo, favicon).
+ * Returns null on failure so callers can fall back to defaults.
+ */
+export async function fetchSiteSettings() {
   try {
-    const config = {
-      method,
-      headers,
-      signal: controller.signal,
-    };
+    return await request("GET", "/public/site-settings");
+  } catch {
+    return null;
+  }
+}
 
-    if (body) {
-      if (isFormData) {
-        config.body = body; // FormData is already encoded
-        delete config.headers["Content-Type"]; // Let browser set it
-      } else {
-        config.body = JSON.stringify(body);
+// ── Admin: Site Settings ──────────────────────────────────────────────────────
+
+export async function adminGetSiteSettings() {
+  return request("GET", "/admin/site-settings", null, true);
+}
+
+export async function adminCreateSiteSettings(payload) {
+  return request("POST", "/admin/site-settings", payload, true);
+}
+
+export async function adminUpdateSiteSettings(id, payload) {
+  return request("PUT", `/admin/site-settings/${id}`, payload, true);
+}
+
+export async function adminDeleteSiteSettings(id) {
+  return request("DELETE", `/admin/site-settings/${id}`, null, true);
+}
+
+// ── Contact Form (public submit) ──────────────────────────────────────────────
+// The ContactMessage entity maps to a /public/contact endpoint.
+// If the backend controller isn't live yet, this throws and the caller can
+// show a local success message (the current behaviour).
+
+export async function submitContactMessage(form) {
+  // Map frontend form fields → backend ContactMessage fields
+  const payload = {
+    fullName: form.name,
+    email: form.email,
+    phoneNumber: form.phone,
+    companyName: form.company,
+    lookingFor: mapLookingFor(form.role),
+    budgetRange: mapBudgetRange(form.budget),
+    projectDescription: form.message,
+  };
+  return request("POST", "/public/contact", payload);
+}
+
+function mapLookingFor(role) {
+  const map = {
+    "Frontend Developer": "FRONTEND",
+    "Backend Developer": "BACKEND",
+    "Full Stack Developer": "FULLSTACK",
+    "Mobile Developer": "MOBILE",
+    "DevOps Engineer": "DEVOPS",
+    "UI/UX Designer": "UI_UX",
+    "QA Engineer": "QA",
+    "Complete Project Team": "COMPLETE_PROJECT_TEAM",
+  };
+  return map[role] || null;
+}
+
+function mapBudgetRange(budget) {
+  if (!budget) return null;
+  if (budget.includes("Under")) return "BELOW_1000";
+  if (budget.includes("1,000 –")) return "BETWEEN_1000_5000";
+  if (budget.includes("3,000 –")) return "BETWEEN_1000_5000";
+  if (budget.includes("6,000 –")) return "BETWEEN_5000_10000";
+  if (budget.includes("12,000+")) return "ABOVE_10000";
+  return null;
+}
+
+// ── Developers (public listing) ───────────────────────────────────────────────
+// These endpoints will exist once a DeveloperController is added.
+// Returns null on failure so the caller falls back to Datastore defaults.
+
+export async function fetchDevelopers(category) {
+  try {
+    const path = category && category !== "All"
+      ? `/public/developers?category=${category.toUpperCase()}`
+      : "/public/developers";
+    return await request("GET", path);
+  } catch {
+    return null;
+  }
+}
+
+// ── Admin: Developers ─────────────────────────────────────────────────────────
+
+export async function adminGetDevelopers() {
+  return request("GET", "/admin/developers", null, true);
+}
+
+export async function adminCreateDeveloper(payload) {
+  return request("POST", "/admin/developers", payload, true);
+}
+
+export async function adminUpdateDeveloper(id, payload) {
+  return request("PUT", `/admin/developers/${id}`, payload, true);
+}
+
+export async function adminDeleteDeveloper(id) {
+  return request("DELETE", `/admin/developers/${id}`, null, true);
+}
+
+export async function adminHireDeveloper(id) {
+  return request("PUT", `/admin/developers/${id}/hire`, null, true);
+}
+
+// ── Admin: Testimonials ───────────────────────────────────────────────────────
+
+export async function adminGetTestimonials() {
+  return request("GET", "/admin/testimonials", null, true);
+}
+
+export async function adminCreateTestimonial(payload) {
+  return request("POST", "/admin/testimonials", payload, true);
+}
+
+export async function adminUpdateTestimonial(id, payload) {
+  return request("PUT", `/admin/testimonials/${id}`, payload, true);
+}
+
+export async function adminDeleteTestimonial(id) {
+  return request("DELETE", `/admin/testimonials/${id}`, null, true);
+}
+
+// ── Admin: FAQs ───────────────────────────────────────────────────────────────
+
+export async function adminGetFAQs() {
+  return request("GET", "/admin/faqs", null, true);
+}
+
+export async function adminCreateFAQ(payload) {
+  return request("POST", "/admin/faqs", payload, true);
+}
+
+export async function adminUpdateFAQ(id, payload) {
+  return request("PUT", `/admin/faqs/${id}`, payload, true);
+}
+
+export async function adminDeleteFAQ(id) {
+  return request("DELETE", `/admin/faqs/${id}`, null, true);
+}
+
+// ── Admin: Pricing ────────────────────────────────────────────────────────────
+
+export async function adminGetPricing(sectionId) {
+  return request("GET", `/admin/pricing/${sectionId}`, null, true);
+}
+
+export async function adminUpdatePricingPlan(id, payload) {
+  return request("PUT", `/admin/pricing/plans/${id}`, payload, true);
+}
+
+// ── Admin: Footer ─────────────────────────────────────────────────────────────
+
+export async function adminGetFooter() {
+  return request("GET", "/admin/footer", null, true);
+}
+
+export async function adminUpdateFooter(id, payload) {
+  return request("PUT", `/admin/footer/${id}`, payload, true);
+}
+
+// ── Admin: Contact Info ───────────────────────────────────────────────────────
+
+export async function adminGetContactInfo() {
+  return request("GET", "/admin/contact-info", null, true);
+}
+
+export async function adminUpdateContactInfo(id, payload) {
+  return request("PUT", `/admin/contact-info/${id}`, payload, true);
+}
+
+// ── Admin: Hero Section ───────────────────────────────────────────────────────
+
+export async function adminGetHeroSection() {
+  return request("GET", "/admin/about/hero", null, true);
+}
+
+export async function adminUpdateHeroSection(id, payload) {
+  return request("PUT", `/admin/about/hero/${id}`, payload, true);
+}
+
+// ── Token refresh interceptor ─────────────────────────────────────────────────
+// Wrap any admin call so if 401 is returned, we auto-refresh and retry once.
+
+export async function withTokenRefresh(apiCall) {
+  try {
+    return await apiCall();
+  } catch (err) {
+    if (err.message && err.message.includes("401")) {
+      try {
+        await refreshAccessToken();
+        return await apiCall();
+      } catch {
+        clearTokens();
+        throw new Error("Session expired. Please log in again.");
       }
     }
-
-    const response = await fetch(url, config);
-    clearTimeout(timeoutId);
-
-    // Handle 401 Unauthorized — token might be expired
-    if (response.status === 401) {
-      clearToken();
-      window.dispatchEvent(new CustomEvent("auth_expired"));
-      throw new Error("Session expired. Please login again.");
-    }
-
-    // Parse response
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      throw {
-        status: response.status,
-        message: data?.message || data?.error || `HTTP ${response.status}`,
-        data,
-      };
-    }
-
-    return data;
-  } catch (error) {
-    clearTimeout(timeoutId);
-
-    // Handle abort (timeout)
-    if (error.name === "AbortError") {
-      throw new Error("Request timeout. Please try again.");
-    }
-
-    throw error;
+    throw err;
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTHENTICATION API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const authAPI = {
-  login: (username, password) =>
-    apiCall("/auth/login", {
-      method: "POST",
-      body: { username, password },
-      includeAuth: false,
-    }),
-
-  logout: () =>
-    apiCall("/auth/logout", { method: "POST", includeAuth: true }),
-
-  verifyToken: () =>
-    apiCall("/auth/verify", { method: "GET", includeAuth: true }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SITE DATA API — CMS Content (Mapped to your backend endpoints)
-// ─────────────────────────────────────────────────────────────────────────────
-// Backend routes used here:
-//  - GET  /public/about/*
-//  - GET  /public/site-settings
-//  - Admin writes are split across /admin/about/* and /admin/site-settings/*
-//
-// Note: Your current UI/local data model expects a single "getAll" object.
-// This wrapper fetches the relevant public endpoints and combines them.
-
-export const siteDataAPI = {
-  // Combined fetch for the landing page
-  getAll: async () => {
-    const [
-      heroRes,
-      companiesRes,
-      whatWeOfferRes,
-      industriesRes,
-      techRes,
-      startupRes,
-      whyChooseRes,
-      testimonialsRes,
-      getStartedRes,
-      settingsRes,
-    ] = await Promise.all([
-      apiCall("/public/about/hero", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/companies", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/what-we-offer", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/industries", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/technologies", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/startup", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/why-choose-us", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/testimonials", { method: "GET", includeAuth: false }),
-      apiCall("/public/about/get-started", { method: "GET", includeAuth: false }),
-      apiCall("/public/site-settings", { method: "GET", includeAuth: false }),
-    ]);
-
-    return {
-      // home-ish
-      hero: heroRes?.heroSection ?? null,
-      dashboardCard: heroRes?.dashboardCard ?? null,
-      totalDevelopers: heroRes?.totalDevelopers ?? null,
-
-      companies: companiesRes ?? [],
-      whatWeOffer: whatWeOfferRes ?? null,
-      industries: industriesRes ?? null,
-
-      technologies: techRes ?? null,
-      startup: startupRes ?? null,
-      whyChoose: whyChooseRes ?? null,
-      testimonials: testimonialsRes ?? null,
-      getStarted: getStartedRes ?? null,
-
-      // settings
-      siteSettings: settingsRes ?? null,
-
-      // keep compatibility for your existing Datastore deepMerge usage
-      _raw: {
-        heroRes,
-        companiesRes,
-        whatWeOfferRes,
-        industriesRes,
-        techRes,
-        startupRes,
-        whyChooseRes,
-        testimonialsRes,
-        getStartedRes,
-        settingsRes,
-      },
-    };
-  },
-
-  // Simple section fetch (optional). For now, we route known sections.
-  getSection: (section) => {
-    switch (section) {
-      case "hero":
-        return apiCall("/public/about/hero", { method: "GET", includeAuth: false });
-      case "companies":
-        return apiCall("/public/about/companies", { method: "GET", includeAuth: false });
-      case "what-we-offer":
-      case "offer":
-        return apiCall("/public/about/what-we-offer", { method: "GET", includeAuth: false });
-      case "industries":
-        return apiCall("/public/about/industries", { method: "GET", includeAuth: false });
-      case "technologies":
-        return apiCall("/public/about/technologies", { method: "GET", includeAuth: false });
-      case "startup":
-        return apiCall("/public/about/startup", { method: "GET", includeAuth: false });
-      case "why-choose-us":
-      case "why":
-        return apiCall("/public/about/why-choose-us", { method: "GET", includeAuth: false });
-      case "testimonials":
-        return apiCall("/public/about/testimonials", { method: "GET", includeAuth: false });
-      case "get-started":
-        return apiCall("/public/about/get-started", { method: "GET", includeAuth: false });
-      case "site-settings":
-        return apiCall("/public/site-settings", { method: "GET", includeAuth: false });
-      default:
-        // fallback to combined fetch
-        return siteDataAPI.getAll();
-    }
-  },
-
-  // Admin writes are not a single endpoint in your backend.
-  // Keep these as explicit errors so we don't silently call wrong routes.
-  updateAll: async () => {
-    throw new Error(
-      "updateAll is not supported by backend as a single endpoint. Update individual resources via /admin/about/* and /admin/site-settings/*."
-    );
-  },
-
-  updateSection: async () => {
-    throw new Error(
-      "updateSection is not supported by backend as a generic endpoint. Update specific resources via the admin controllers."
-    );
-  },
-
-  reset: async () => {
-    throw new Error("reset is not available (no /site-data/reset endpoint in backend).");
-  },
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DEVELOPERS API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const developersAPI = {
-  // Get all developers with optional filtering
-  getAll: (filters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.category) params.append("category", filters.category);
-    if (filters.search) params.append("search", filters.search);
-    const query = params.toString();
-    return apiCall(`/developers${query ? "?" + query : ""}`, {
-      method: "GET",
-      includeAuth: false,
-    });
-  },
-
-  // Get single developer by ID
-  getById: (id) =>
-    apiCall(`/developers/${id}`, { method: "GET", includeAuth: false }),
-
-  // Create new developer (admin only)
-  create: (data) =>
-    apiCall("/developers", { method: "POST", body: data, includeAuth: true }),
-
-  // Update developer (admin only)
-  update: (id, data) =>
-    apiCall(`/developers/${id}`, {
-      method: "PUT",
-      body: data,
-      includeAuth: true,
-    }),
-
-  // Delete developer (admin only)
-  delete: (id) =>
-    apiCall(`/developers/${id}`, { method: "DELETE", includeAuth: true }),
-
-  // Bulk update developers
-  bulkUpdate: (data) =>
-    apiCall("/developers/bulk", {
-      method: "PUT",
-      body: data,
-      includeAuth: true,
-    }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTACT FORM API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const contactAPI = {
-  // Submit contact form
-  submit: (data) =>
-    apiCall("/contact", { method: "POST", body: data, includeAuth: false }),
-
-  // Get all submissions (admin only)
-  getAll: (page = 1, limit = 20) =>
-    apiCall(`/contact?page=${page}&limit=${limit}`, {
-      method: "GET",
-      includeAuth: true,
-    }),
-
-  // Get single submission
-  getById: (id) =>
-    apiCall(`/contact/${id}`, { method: "GET", includeAuth: true }),
-
-  // Mark as read
-  markAsRead: (id) =>
-    apiCall(`/contact/${id}/read`, {
-      method: "PATCH",
-      includeAuth: true,
-    }),
-
-  // Delete submission
-  delete: (id) =>
-    apiCall(`/contact/${id}`, { method: "DELETE", includeAuth: true }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TESTIMONIALS API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const testimonialsAPI = {
-  // Get all testimonials
-  getAll: () =>
-    apiCall("/testimonials", { method: "GET", includeAuth: false }),
-
-  // Get by ID
-  getById: (id) =>
-    apiCall(`/testimonials/${id}`, { method: "GET", includeAuth: false }),
-
-  // Create testimonial (admin only)
-  create: (data) =>
-    apiCall("/testimonials", { method: "POST", body: data, includeAuth: true }),
-
-  // Update testimonial (admin only)
-  update: (id, data) =>
-    apiCall(`/testimonials/${id}`, {
-      method: "PUT",
-      body: data,
-      includeAuth: true,
-    }),
-
-  // Delete testimonial (admin only)
-  delete: (id) =>
-    apiCall(`/testimonials/${id}`, { method: "DELETE", includeAuth: true }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PRICING API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const pricingAPI = {
-  // Get all pricing plans
-  getAll: () =>
-    apiCall("/pricing", { method: "GET", includeAuth: false }),
-
-  // Create plan (admin only)
-  create: (data) =>
-    apiCall("/pricing", { method: "POST", body: data, includeAuth: true }),
-
-  // Update plan (admin only)
-  update: (id, data) =>
-    apiCall(`/pricing/${id}`, {
-      method: "PUT",
-      body: data,
-      includeAuth: true,
-    }),
-
-  // Delete plan (admin only)
-  delete: (id) =>
-    apiCall(`/pricing/${id}`, { method: "DELETE", includeAuth: true }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN STATS API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const adminStatsAPI = {
-  // Get dashboard stats
-  getStats: () =>
-    apiCall("/admin/stats", { method: "GET", includeAuth: true }),
-
-  // Get analytics
-  getAnalytics: (period = "month") =>
-    apiCall(`/admin/analytics?period=${period}`, {
-      method: "GET",
-      includeAuth: true,
-    }),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FILE UPLOAD API
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const uploadAPI = {
-  // Upload image or file
-  uploadFile: (file, folder = "general") => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folder", folder);
-
-    return apiCall("/upload", {
-      method: "POST",
-      body: formData,
-      includeAuth: true,
-      isFormData: true,
-    });
-  },
-
-  // Delete uploaded file
-  deleteFile: (fileId) =>
-    apiCall(`/upload/${fileId}`, { method: "DELETE", includeAuth: true }),
-};
-
-export default {
-  authAPI,
-  siteDataAPI,
-  developersAPI,
-  contactAPI,
-  testimonialsAPI,
-  pricingAPI,
-  adminStatsAPI,
-  uploadAPI,
-  getToken,
-  setToken,
-  clearToken,
-};

@@ -5,7 +5,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { siteDataAPI } from "./Api";
+// import { siteDataAPI } from "../api/Api";
+import { fetchSiteSettings } from "./Api";
 
 // Default data (fallback for when API is unavailable)
 export const DEFAULT_DATA = {
@@ -276,8 +277,8 @@ export async function getData() {
 
   try {
     // Try fetching from API
-    const apiData = await siteDataAPI.getAll();
-    if (apiData) {
+const apiData = await fetchSiteSettings();
+if (apiData) {
       // Merge with defaults to ensure all keys exist
       const merged = deepMerge(apiData, DEFAULT_DATA);
       cache = merged;
@@ -322,7 +323,7 @@ export async function getData() {
 export async function setData(data) {
   try {
     // Update via API
-    await siteDataAPI.updateAll(data);
+    // await siteDataAPI.updateAll(data);
     
     // Clear cache to force refresh
     cache = null;
@@ -357,7 +358,7 @@ export async function setData(data) {
 export async function resetData() {
   try {
     // Reset via API
-    await siteDataAPI.reset();
+    // await siteDataAPI.reset();
     cache = null;
     cacheTime = 0;
   } catch (error) {
